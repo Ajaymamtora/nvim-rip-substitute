@@ -230,7 +230,7 @@ local function createKeymaps()
 	local state = require("rip-substitute.state").state
 	local maps = require("rip-substitute.config").config.keymaps
 	local function keymap(modes, lhs, rhs)
-		vim.keymap.set(modes, lhs, rhs, { buffer = state.popupBufNr, nowait = true })
+		vim.keymap.set(modes, lhs, rhs, { buffer = state.popupBufNr, nowait = true, noremap = true })
 	end
 
 	-- confirm & abort
@@ -265,13 +265,13 @@ local function createKeymaps()
 	end)
 
 	-- toggles
-	keymap("n", maps.toggleFixedStrings, function()
+	keymap({ "n", "i" }, maps.toggleFixedStrings, function()
 		state.useFixedStrings = not state.useFixedStrings
 		require("rip-substitute.rg-operations").incrementalPreviewAndMatchCount()
 		updateMatchCount()
 		setPopupTitle()
 	end)
-	keymap("n", maps.toggleIgnoreCase, function()
+	keymap({ "n", "i" }, maps.toggleIgnoreCase, function()
 		state.useIgnoreCase = not state.useIgnoreCase
 		require("rip-substitute.rg-operations").incrementalPreviewAndMatchCount()
 		updateMatchCount()
