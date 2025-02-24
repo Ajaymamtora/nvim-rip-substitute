@@ -98,14 +98,16 @@ use {
 ## Configuration
 
 ```lua
+```lua
 -- default settings
 require("rip-substitute").setup {
 	popupWin = {
-		title = " rip-substitute",
+		title = " rip-substitute",
 		border = "single",
 		matchCountHlGroup = "Keyword",
 		noMatchHlGroup = "ErrorMsg",
 		position = "bottom", ---@type "top"|"bottom"
+		layout = "standard", ---@type "standard"|"jetbrains"
 		hideSearchReplaceLabels = false,
 		hideKeymapHints = false,
 	},
@@ -145,9 +147,10 @@ require("rip-substitute").setup {
 	},
 	notification = {
 		onSuccess = true,
-		icon = "",
+		icon = "",
 	},
 }
+```
 ```
 
 > [!NOTE]

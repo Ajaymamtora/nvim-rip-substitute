@@ -131,7 +131,20 @@ end
 ---@param minWidth integer
 local function adaptivePopupWidth(minWidth)
 	local state = require("rip-substitute.state").state
+	local config = require("rip-substitute.config").config
 	local currentOpts = vim.api.nvim_win_get_config(state.popupWinNr)
+
+	-- For jetbrains layout, width should always be the width of the target window
+	if config.popupWin.layout == "jetbrains" then
+		local targetWinWidth = vim.api.nvim_win_get_width(state.targetWin)
+		if currentOpts.width ~= targetWinWidth then
+			vim.api.nvim_win_set_config(state.popupWinNr, { width = targetWinWidth })
+		end
+		setPopupLabelsIfEnoughSpace(targetWinWidth)
+		return
+	end
+
+	-- Regular adaptive width behavior
 	local searchLine, replaceLine = unpack(getPopupLines())
 	local longestLine = math.max(#searchLine, #replaceLine)
 	local newWidth = math.max(longestLine + 4, minWidth) -- +4 for win borders & padding
@@ -212,6 +225,9 @@ local function setPopupTitle()
 	local state = require("rip-substitute.state").state
 	local config = require("rip-substitute.config").config
 
+	-- For jetbrains layout, possibly skip the title
+	if config.popupWin.layout == "jetbrains" then return end
+
 	local title = config.popupWin.title
 	if state.useIgnoreCase or state.useFixedStrings then
 		title = ""
@@ -224,6 +240,64 @@ local function setPopupTitle()
 
 	if title ~= "" then title = " " .. vim.trim(title) .. " " end
 	vim.api.nvim_win_set_config(state.popupWinNr, { title = title })
+end
+
+---Create the status line for jetbrains layout showing active options
+---@return table[] footer items in format expected by nvim_win_set_config
+local function createJetbrainsStatusLine()
+	local state = require("rip-substitute.state").state
+	local config = require("rip-substitute.config").config
+	local matchHlGroup = config.popupWin.matchCountHlGroup
+	local noMatchHlGroup = config.popupWin.noMatchHlGroup
+	local maps = config.keymaps
+	local hlgroup = { key = "Comment", desc = "NonText" }
+
+	local statusItems = {
+		{ " ", "FloatBorder" },
+	}
+
+	-- Match count
+	local plural = state.matchCount == 1 and "" or "es"
+	local matchText = ("%d match%s"):format(state.matchCount, plural)
+	local matchHighlight = state.matchCount > 0 and matchHlGroup or noMatchHlGroup
+	table.insert(statusItems, { matchText, matchHighlight })
+	table.insert(statusItems, { "  ", "FloatBorder" })
+
+	-- Option indicators
+	if state.useFixedStrings then
+		table.insert(statusItems, { "Aa", "DiagnosticHint" })
+		table.insert(statusItems, { " ", "FloatBorder" })
+	end
+
+	if state.useIgnoreCase then
+		table.insert(statusItems, { "a=A", "DiagnosticHint" })
+		table.insert(statusItems, { " ", "FloatBorder" })
+	end
+
+	-- Range indicator if applicable
+	if state.range then
+		local rangeText = "Range: " .. state.range.start
+		if state.range.start ~= state.range.end_ then
+			rangeText = rangeText .. "-" .. state.range.end_
+		end
+		table.insert(statusItems, { rangeText, "Special" })
+		table.insert(statusItems, { "  ", "FloatBorder" })
+	end
+
+	-- Keymaps (only if not hidden)
+	if not config.popupWin.hideKeymapHints then
+		table.insert(statusItems, { "normal: ", hlgroup.desc })
+		table.insert(statusItems, { maps.showHelp:gsub("[<>]", ""), hlgroup.key })
+		table.insert(statusItems, { " help  ", hlgroup.desc })
+		table.insert(statusItems, { maps.confirm:gsub("[<>]", ""), hlgroup.key })
+		table.insert(statusItems, { " confirm  ", hlgroup.desc })
+		table.insert(statusItems, { maps.abort:gsub("[<>]", ""), hlgroup.key })
+		table.insert(statusItems, { " abort", hlgroup.desc })
+	end
+
+	table.insert(statusItems, { " ", "FloatBorder" })
+
+	return statusItems
 end
 
 local function createKeymaps()
@@ -269,13 +343,27 @@ local function createKeymaps()
 		state.useFixedStrings = not state.useFixedStrings
 		require("rip-substitute.rg-operations").incrementalPreviewAndMatchCount()
 		updateMatchCount()
-		setPopupTitle()
+
+		-- For jetbrains layout, update the footer to show the new options state
+		local config = require("rip-substitute.config").config
+		if config.popupWin.layout == "jetbrains" then
+			vim.api.nvim_win_set_config(state.popupWinNr, { footer = createJetbrainsStatusLine() })
+		else
+			setPopupTitle()
+		end
 	end)
 	keymap({ "n", "i" }, maps.toggleIgnoreCase, function()
 		state.useIgnoreCase = not state.useIgnoreCase
 		require("rip-substitute.rg-operations").incrementalPreviewAndMatchCount()
 		updateMatchCount()
-		setPopupTitle()
+
+		-- For jetbrains layout, update the footer to show the new options state
+		local config = require("rip-substitute.config").config
+		if config.popupWin.layout == "jetbrains" then
+			vim.api.nvim_win_set_config(state.popupWinNr, { footer = createJetbrainsStatusLine() })
+		else
+			setPopupTitle()
+		end
 	end)
 
 	-- help
@@ -325,42 +413,78 @@ function M.openSubstitutionPopup()
 	vim.bo[bufnr].filetype = "rip-substitute"
 	state.popupBufNr = bufnr
 
-	-- FOOTER & WIDTH
-	local maps = require("rip-substitute.config").config.keymaps
-	local hlgroup = { key = "Comment", desc = "NonText" }
-	local footer = config.popupWin.hideKeymapHints and { { "" } }
-		or {
-			{ " ", "FloatBorder" },
-			{ "xxx matches", config.popupWin.noMatchHlGroup },
-			{ "  ", "FloatBorder" },
-			{ "normal: ", hlgroup.desc },
-			{ maps.showHelp:gsub("[<>]", ""), hlgroup.key },
-			{ " help  ", hlgroup.desc },
-			{ maps.confirm:gsub("[<>]", ""), hlgroup.key },
-			{ " confirm  ", hlgroup.desc },
-			{ maps.abort:gsub("[<>]", ""), hlgroup.key },
-			{ " abort", hlgroup.desc },
-			{ " ", "FloatBorder" },
-		}
-	local footerLength = vim.iter(footer):fold(0, function(sum, part) return sum + #part[1] end)
-	local hardMinimum = 25 -- mostly only in effect when keymaps hints are disabled
-	local titleLength = #config.popupWin.title + 2
-	local minWidth = math.max(footerLength, titleLength, hardMinimum)
+	-- DETERMINE LAYOUT PARAMETERS
+	local popupZindex = 100 -- Maximum z-index to ensure it's above notifications
+	local layout = config.popupWin.layout or "standard"
+	local isJetbrainsLayout = layout == "jetbrains"
+	local position = config.popupWin.position
 
-	-- CREATE WINDOW
-	local popupZindex = 45 -- below nvim-notify (50), above scrollbars (satellite uses 40)
-	state.popupWinNr = vim.api.nvim_open_win(state.popupBufNr, true, {
-		relative = "win",
-		anchor = config.popupWin.position == "top" and "NE" or "SE",
-		row = config.popupWin.position == "top" and 0 or vim.api.nvim_win_get_height(0),
-		col = vim.api.nvim_win_get_width(0),
-		width = minWidth,
-		height = 2,
-		style = "minimal",
-		border = config.popupWin.border,
-		zindex = popupZindex,
-		footer = footer,
-	})
+	-- SETUP WINDOW BASED ON LAYOUT
+	if isJetbrainsLayout then
+		-- Jetbrains layout: full width at top or bottom
+		local targetWinWidth = vim.api.nvim_win_get_width(state.targetWin)
+		local jetbrainsOpts = {
+			relative = "win",
+			win = state.targetWin,
+			width = targetWinWidth,
+			height = 2,
+			style = "minimal",
+			border = config.popupWin.border,
+			zindex = popupZindex,
+			footer = createJetbrainsStatusLine(),
+		}
+
+		-- Position at top or bottom
+		if position == "top" then
+			jetbrainsOpts.row = 0
+			jetbrainsOpts.col = 0
+			jetbrainsOpts.anchor = "NW"
+		else -- bottom
+			jetbrainsOpts.row = vim.api.nvim_win_get_height(state.targetWin)
+			jetbrainsOpts.col = 0
+			jetbrainsOpts.anchor = "SW"
+		end
+
+		state.popupWinNr = vim.api.nvim_open_win(state.popupBufNr, true, jetbrainsOpts)
+	else
+		-- Standard layout with footer and adaptive width
+		local maps = config.keymaps
+		local hlgroup = { key = "Comment", desc = "NonText" }
+		local footer = config.popupWin.hideKeymapHints and { { "" } }
+			or {
+				{ " ", "FloatBorder" },
+				{ "xxx matches", config.popupWin.noMatchHlGroup },
+				{ "  ", "FloatBorder" },
+				{ "normal: ", hlgroup.desc },
+				{ maps.showHelp:gsub("[<>]", ""), hlgroup.key },
+				{ " help  ", hlgroup.desc },
+				{ maps.confirm:gsub("[<>]", ""), hlgroup.key },
+				{ " confirm  ", hlgroup.desc },
+				{ maps.abort:gsub("[<>]", ""), hlgroup.key },
+				{ " abort", hlgroup.desc },
+				{ " ", "FloatBorder" },
+			}
+		local footerLength = vim.iter(footer):fold(0, function(sum, part) return sum + #part[1] end)
+		local hardMinimum = 25 -- mostly only in effect when keymaps hints are disabled
+		local titleLength = #config.popupWin.title + 2
+		local minWidth = math.max(footerLength, titleLength, hardMinimum)
+
+		state.popupWinNr = vim.api.nvim_open_win(state.popupBufNr, true, {
+			relative = "win",
+			anchor = position == "top" and "NE" or "SE",
+			row = position == "top" and 0 or vim.api.nvim_win_get_height(0),
+			col = vim.api.nvim_win_get_width(0),
+			width = minWidth,
+			height = 2,
+			style = "minimal",
+			border = config.popupWin.border,
+			zindex = popupZindex,
+			footer = footer,
+			title = config.popupWin.title,
+		})
+	end
+
+	-- WINDOW SETTINGS
 	local win = state.popupWinNr
 	vim.wo[win].list = true
 	vim.wo[win].listchars = "multispace:·,trail:·,lead:·,tab:▸▸,precedes:…,extends:…"
@@ -378,8 +502,10 @@ function M.openSubstitutionPopup()
 
 	-- WINDOW LOOK AND BEHAVIOR
 	createKeymaps()
-	setPopupTitle()
-	setPopupLabelsIfEnoughSpace(minWidth)
+	if not isJetbrainsLayout then
+		setPopupTitle()
+		setPopupLabelsIfEnoughSpace(vim.api.nvim_win_get_width(state.popupWinNr))
+	end
 	rangeBackdrop(popupZindex)
 	temporarilySetConceal()
 
@@ -389,10 +515,17 @@ function M.openSubstitutionPopup()
 		callback = function()
 			ensureOnly2LinesInPopup()
 			autoCaptureGroups()
+
+			local minWidth = isJetbrainsLayout and vim.api.nvim_win_get_width(state.targetWin) or 25
 			adaptivePopupWidth(minWidth)
 
 			require("rip-substitute.rg-operations").incrementalPreviewAndMatchCount()
-			updateMatchCount()
+
+			if isJetbrainsLayout then
+				vim.api.nvim_win_set_config(state.popupWinNr, { footer = createJetbrainsStatusLine() })
+			else
+				updateMatchCount()
+			end
 		end,
 	})
 

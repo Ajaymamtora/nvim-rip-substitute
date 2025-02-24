@@ -4,11 +4,12 @@ local M = {}
 ---@class RipSubstitute.Config
 local defaultConfig = {
 	popupWin = {
-		title = " rip-substitute",
+		title = " rip-substitute",
 		border = "single",
 		matchCountHlGroup = "Keyword",
 		noMatchHlGroup = "ErrorMsg",
 		position = "bottom", ---@type "top"|"bottom"
+		layout = "standard", ---@type "standard"|"jetbrains"
 		hideSearchReplaceLabels = false,
 		hideKeymapHints = false,
 	},
@@ -48,7 +49,7 @@ local defaultConfig = {
 	},
 	notification = {
 		onSuccess = true,
-		icon = "",
+		icon = "",
 	},
 }
 
@@ -80,6 +81,18 @@ function M.setup(userConfig)
 		local msg = "`keymaps.prevSubst` and `keymaps.nextSubst` have been deprecated. "
 			.. "Use `keymaps.prevSubstitutionInHistory` and `keymaps.nextSubstitutionInHistory` instead."
 		notify(msg, "warn")
+	end
+
+	-- VALIDATE layout option
+	if
+		M.config.popupWin.layout
+		and not (M.config.popupWin.layout == "standard" or M.config.popupWin.layout == "jetbrains")
+	then
+		local msg = ('Invalid layout option "%s". Using "standard" layout instead.'):format(
+			M.config.popupWin.layout
+		)
+		notify(msg, "warn")
+		M.config.popupWin.layout = "standard"
 	end
 
 	-- VALIDATE `rg` installations not built with `pcre2`, see #3
