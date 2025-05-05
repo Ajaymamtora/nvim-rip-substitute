@@ -365,7 +365,7 @@ function M.openSubstitutionPopup()
 	local isTop = config.popupWin.position == "top"
 
 	if config.popupWin.layoutStyle == "jetbrains" then
-		popupWidth = editorWidth
+		popupWidth = config.popupWin.jetbrainsFullWidth and vim.o.columns or editorWidth
 		popupCol = 0
 		popupAnchor = isTop and "NW" or "SW"
 	else -- default layout

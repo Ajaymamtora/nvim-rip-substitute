@@ -21,6 +21,7 @@ local defaultConfig = {
 		noMatchHlGroup = "ErrorMsg",
 		position = "bottom", ---@type "top"|"bottom"
 		layoutStyle = "default", ---@type "default"|"jetbrains"
+		jetbrainsFullWidth = true, -- Use full editor width for jetbrains style, else current window width
 		hideSearchReplaceLabels = false,
 		hideKeymapHints = false,
 		disableCompletions = true, -- disables all blink.cmp completions
@@ -101,6 +102,12 @@ function M.setup(userConfig)
 	if layout ~= "default" and layout ~= "jetbrains" then
 		notify(('Invalid layoutStyle %q. Must be "default" or "jetbrains". Falling back to "default".'):format(layout), "warn")
 		M.config.popupWin.layoutStyle = "default"
+	end
+
+	-- VALIDATE jetbrainsFullWidth
+	if type(M.config.popupWin.jetbrainsFullWidth) ~= "boolean" then
+		notify('Invalid jetbrainsFullWidth type. Must be boolean. Falling back to "true".', "warn")
+		M.config.popupWin.jetbrainsFullWidth = true
 	end
 
 	-- VALIDATE `rg` installations not built with `pcre2`, see #3
