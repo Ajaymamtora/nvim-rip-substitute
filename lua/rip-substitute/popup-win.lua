@@ -420,6 +420,13 @@ function M.openSubstitutionPopup()
 	local isJetbrainsLayout = layout == "jetbrains"
 	local position = config.popupWin.position
 
+	-- disable blink.cmp completions https://main.cmp.saghen.dev/recipes.html#disable-per-filetype-buffer
+	if config.popupWin.disableCompletions then vim.b[bufnr].completion = false end
+
+	-- FOOTER & WIDTH
+	local maps = require("rip-substitute.config").config.keymaps
+	local hlgroup = { key = "Comment", desc = "NonText" }
+
 	-- SETUP WINDOW BASED ON LAYOUT
 	if isJetbrainsLayout then
 		-- Jetbrains layout: full width at top or bottom
