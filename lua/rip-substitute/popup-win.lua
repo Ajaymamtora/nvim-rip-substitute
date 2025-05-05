@@ -128,8 +128,12 @@ local function autoCaptureGroups()
 	end
 end
 
----@param minWidth integer
+---@param minWidth integer Minimum required width based on title/footer
 local function adaptivePopupWidth(minWidth)
+	-- GUARD: JetBrains style uses fixed full width
+	local config = require("rip-substitute.config").config
+	if config.popupWin.layoutStyle == "jetbrains" then return end
+
 	local state = require("rip-substitute.state").state
 	local currentOpts = vim.api.nvim_win_get_config(state.popupWinNr)
 	local searchLine, replaceLine = unpack(getPopupLines())
@@ -352,16 +356,32 @@ function M.openSubstitutionPopup()
 	local footerLength = vim.iter(footer):fold(0, function(sum, part) return sum + #part[1] end)
 	local hardMinimum = 25 -- only in effect when keymaps hints are disabled
 	local titleLength = #config.popupWin.title + 2
-	local minWidth = math.max(footerLength, titleLength, hardMinimum)
+	local minWidth = math.max(footerLength, titleLength, hardMinimum) -- Minimum required width
+
+	-- DETERMINE LAYOUT BASED ON STYLE
+	local popupWidth, popupCol, popupAnchor
+	local editorWidth = vim.api.nvim_win_get_width(0)
+	local editorHeight = vim.api.nvim_win_get_height(0)
+	local isTop = config.popupWin.position == "top"
+
+	if config.popupWin.layoutStyle == "jetbrains" then
+		popupWidth = editorWidth
+		popupCol = 0
+		popupAnchor = isTop and "NW" or "SW"
+	else -- default layout
+		popupWidth = minWidth
+		popupCol = editorWidth
+		popupAnchor = isTop and "NE" or "SE"
+	end
 
 	-- CREATE WINDOW
 	local popupZindex = 45 -- below nvim-notify (50), above scrollbars (satellite uses 40)
 	state.popupWinNr = vim.api.nvim_open_win(state.popupBufNr, true, {
 		relative = "win",
-		anchor = config.popupWin.position == "top" and "NE" or "SE",
-		row = config.popupWin.position == "top" and 0 or vim.api.nvim_win_get_height(0),
-		col = vim.api.nvim_win_get_width(0),
-		width = minWidth,
+		anchor = popupAnchor,
+		row = isTop and 0 or editorHeight,
+		col = popupCol,
+		width = popupWidth,
 		height = 2,
 		style = "minimal",
 		border = config.popupWin.border,
@@ -386,7 +406,7 @@ function M.openSubstitutionPopup()
 	-- WINDOW LOOK AND BEHAVIOR
 	createKeymaps()
 	setPopupTitle()
-	setPopupLabelsIfEnoughSpace(minWidth)
+	setPopupLabelsIfEnoughSpace(popupWidth) -- Use actual window width for label placement
 	rangeBackdrop(popupZindex)
 	temporarilySetConceal()
 
