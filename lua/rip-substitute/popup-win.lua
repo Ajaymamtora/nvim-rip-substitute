@@ -199,6 +199,7 @@ local function rangeBackdrop(popupZindex)
 				width = vim.api.nvim_win_get_width(state.targetWin),
 				height = height,
 				style = "minimal",
+				border = "none", -- needs to be explicitly set due to `vim.o.winborder`
 				zindex = popupZindex - 1, -- so the popup stays on top
 			})
 			vim.api.nvim_set_hl(0, "RipSubBackdrop", { bg = "#000000", default = true })
@@ -414,7 +415,7 @@ function M.openSubstitutionPopup()
 	state.popupBufNr = bufnr
 
 	-- DETERMINE LAYOUT PARAMETERS
-	local popupZindex = 100 -- Maximum z-index to ensure it's above notifications
+	local popupZindex = 45 -- below nvim-notify (50), above scrollbars (satellite uses 40)
 	local layout = config.popupWin.layout or "standard"
 	local isJetbrainsLayout = layout == "jetbrains"
 	local position = config.popupWin.position

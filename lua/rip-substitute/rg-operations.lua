@@ -22,10 +22,12 @@ local function runRipgrep(rgArgs)
 		"--no-crlf", -- see #17
 	}
 	vim.list_extend(args, rgArgs)
+	if config.debug then u.notify("ARGS\n" .. table.concat(args, " "), "debug") end
 
 	-- INFO reading from stdin instead of the file to deal with unsaved changes
 	-- (see #8) and to be able to handle non-file buffers
 	local result = vim.system(args, { stdin = targetBufCache }):wait()
+	if config.debug then u.notify("RESULT\n" .. result.stdout, "debug") end
 
 	local text = result.code == 0 and result.stdout or result.stderr
 	return result.code, vim.split(vim.trim(text or ""), "\n")
@@ -49,6 +51,14 @@ end
 ---@return { lnum: number, col: number, text: string }
 local function parseRgResult(line)
 	local lnumStr, colStr, text = line:match("^(%d+):(%d+):(.*)")
+
+	-- GUARD empty line with empty search string, see #38
+	if not lnumStr then
+		lnumStr = line:match("%d")
+		colStr = "1"
+		text = ""
+	end
+
 	return { lnum = tonumber(lnumStr) - 1, col = tonumber(colStr) - 1, text = text }
 end
 
@@ -167,14 +177,25 @@ function M.incrementalPreviewAndMatchCount()
 	vim.iter(searchMatches):slice(viewStartIdx, viewEndIdx):map(parseRgResult):each(function(match)
 		local matchEndCol = match.col + #match.text
 		if toReplace == "" then
-			vim.api.nvim_buf_add_highlight(
-				state.targetBuf,
-				ns,
-				hlGroup,
-				match.lnum,
-				match.col,
-				matchEndCol
-			)
+			if vim.hl.range then
+				vim.hl.range(
+					state.targetBuf,
+					ns,
+					hlGroup,
+					{ match.lnum, match.col },
+					{ match.lnum, matchEndCol }
+				)
+			else
+				---@diagnostic disable-next-line: deprecated --- keep for backwards compatibility
+				vim.api.nvim_buf_add_highlight(
+					state.targetBuf,
+					ns,
+					hlGroup,
+					match.lnum,
+					match.col,
+					matchEndCol
+				)
+			end
 		else
 			-- INFO requires `conceallevel` >= 2
 			vim.api.nvim_buf_set_extmark(state.targetBuf, ns, match.lnum, match.col, {

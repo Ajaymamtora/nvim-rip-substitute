@@ -1,17 +1,29 @@
 local M = {}
 --------------------------------------------------------------------------------
 
+local fallbackBorder = "rounded"
+
+---@return string
+local function getBorder()
+	local hasWinborder, winborder = pcall(function() return vim.o.winborder end)
+	if not hasWinborder or winborder == "" or winborder == "none" then return fallbackBorder end
+	return winborder
+end
+
+--------------------------------------------------------------------------------
+
 ---@class RipSubstitute.Config
 local defaultConfig = {
 	popupWin = {
-		title = " rip-substitute",
-		border = "single",
+		title = " rip-substitute",
+		border = getBorder(), -- `vim.o.winborder` on nvim 0.11, otherwise "rounded"
 		matchCountHlGroup = "Keyword",
 		noMatchHlGroup = "ErrorMsg",
 		position = "bottom", ---@type "top"|"bottom"
 		layout = "standard", ---@type "standard"|"jetbrains"
 		hideSearchReplaceLabels = false,
 		hideKeymapHints = false,
+		disableCompletions = true, -- disables all blink.cmp completions
 	},
 	prefill = {
 		normal = "cursorWord", ---@type "cursorWord"|false
@@ -51,6 +63,7 @@ local defaultConfig = {
 		onSuccess = true,
 		icon = "",
 	},
+	debug = false, -- extra notifications for debugging
 }
 
 --------------------------------------------------------------------------------
@@ -108,10 +121,9 @@ function M.setup(userConfig)
 	end
 
 	-- VALIDATE border `none` does not work with and title/footer used by this plugin
-	if M.config.popupWin.border == "none" then
-		local fallback = defaultConfig.popupWin.border
-		M.config.popupWin.border = fallback
-		local msg = ('Border "none" is not supported, falling back to %q.'):format(fallback)
+	if M.config.popupWin.border == "none" or M.config.popupWin.border == "" then
+		M.config.popupWin.border = fallbackBorder
+		local msg = ('Border "none" is not supported, falling back to %q.'):format(fallbackBorder)
 		notify(msg, "warn")
 	end
 end
