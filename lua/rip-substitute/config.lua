@@ -20,6 +20,7 @@ local defaultConfig = {
 		matchCountHlGroup = "Keyword",
 		noMatchHlGroup = "ErrorMsg",
 		position = "bottom", ---@type "top"|"bottom"
+		layoutStyle = "default", ---@type "default"|"jetbrains"
 		hideSearchReplaceLabels = false,
 		hideKeymapHints = false,
 		disableCompletions = true, -- disables all blink.cmp completions
@@ -93,6 +94,13 @@ function M.setup(userConfig)
 		local msg = "`keymaps.prevSubst` and `keymaps.nextSubst` have been deprecated. "
 			.. "Use `keymaps.prevSubstitutionInHistory` and `keymaps.nextSubstitutionInHistory` instead."
 		notify(msg, "warn")
+	end
+
+	-- VALIDATE layoutStyle
+	local layout = M.config.popupWin.layoutStyle
+	if layout ~= "default" and layout ~= "jetbrains" then
+		notify(('Invalid layoutStyle %q. Must be "default" or "jetbrains". Falling back to "default".'):format(layout), "warn")
+		M.config.popupWin.layoutStyle = "default"
 	end
 
 	-- VALIDATE `rg` installations not built with `pcre2`, see #3
