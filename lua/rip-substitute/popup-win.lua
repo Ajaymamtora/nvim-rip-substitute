@@ -215,16 +215,26 @@ end
 
 local function setPopupTitle()
 	local state = require("rip-substitute.state").state
-	local config = require("rip-substitute.config").config
 
-	local title = config.popupWin.title
-	if state.useIgnoreCase or state.useFixedStrings then
-		title = ""
-		if state.useFixedStrings then title = title .. " --fixed-strings" end
-		if state.useIgnoreCase then title = title .. " --ignore-case" end
-	elseif state.range then
-		title = "Range: " .. state.range.start
-		if state.range.start ~= state.range.end_ then title = title .. " – " .. state.range.end_ end
+	local parts = {}
+	if state.useFixedStrings then
+		table.insert(parts, "Fixed strings On")
+	else
+		table.insert(parts, "Regex On")
+	end
+
+	if state.useIgnoreCase then
+		table.insert(parts, "Case insensitive")
+	else
+		table.insert(parts, "Case sensitive")
+	end
+
+	local title = table.concat(parts, " | ")
+
+	if state.range then
+		local range_str = "Range: " .. state.range.start
+		if state.range.start ~= state.range.end_ then range_str = range_str .. " – " .. state.range.end_ end
+		title = title .. " | " .. range_str
 	end
 
 	if title ~= "" then title = " " .. vim.trim(title) .. " " end
