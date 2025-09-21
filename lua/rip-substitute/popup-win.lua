@@ -233,7 +233,9 @@ local function setPopupTitle()
 
 	if state.range then
 		local range_str = "Range: " .. state.range.start
-		if state.range.start ~= state.range.end_ then range_str = range_str .. " – " .. state.range.end_ end
+		if state.range.start ~= state.range.end_ then
+			range_str = range_str .. " – " .. state.range.end_
+		end
 		title = title .. " | " .. range_str
 	end
 
@@ -248,68 +250,63 @@ local function createKeymaps()
 		vim.keymap.set(modes, lhs, rhs, { buffer = state.popupBufNr, nowait = true })
 	end
 
-	-- confirm & abort
-	keymap("n", maps.abort, closePopupWin)
-	keymap("n", maps.confirm, confirmSubstitution)
-	keymap("i", maps.insertModeConfirm, confirmSubstitution)
+	local actions = {
+		abort = closePopupWin,
+		confirm = confirmSubstitution,
+		openAtRegex101 = function() require("rip-substitute.open-at-regex101").request() end,
+		prevSubstitutionInHistory = function()
+			if state.historyPosition < 2 then return end
+			if state.historyPosition == #state.popupHistory + 1 then
+				state.popupPresentContent = vim.api.nvim_buf_get_lines(state.popupBufNr, 0, -1, true)
+			end
+			state.historyPosition = state.historyPosition - 1
+			local content = state.popupHistory[state.historyPosition]
+			vim.api.nvim_buf_set_lines(state.popupBufNr, 0, -1, false, content)
+		end,
+		nextSubstitutionInHistory = function()
+			if state.historyPosition == #state.popupHistory + 1 then return end -- already at present
+			state.historyPosition = state.historyPosition + 1
+			local content = state.historyPosition == #state.popupHistory + 1 and state.popupPresentContent
+				or state.popupHistory[state.historyPosition]
+			vim.api.nvim_buf_set_lines(state.popupBufNr, 0, -1, false, content)
+		end,
+		toggleFixedStrings = function()
+			state.useFixedStrings = not state.useFixedStrings
+			require("rip-substitute.rg-operations").incrementalPreviewAndMatchCount()
+			updateMatchCount()
+			setPopupTitle()
+		end,
+		toggleIgnoreCase = function()
+			state.useIgnoreCase = not state.useIgnoreCase
+			require("rip-substitute.rg-operations").incrementalPreviewAndMatchCount()
+			updateMatchCount()
+			setPopupTitle()
+		end,
+		showHelp = function()
+			local info = {
+				("- [%s] abort"):format(maps.n.abort),
+				("- [%s] confirm"):format(maps.n.confirm),
+				("- [%s] confirm (insert mode)"):format(maps.i.confirm),
+				("- [%s] previous in history"):format(maps.n.prevSubstitutionInHistory),
+				("- [%s] next in history"):format(maps.n.nextSubstitutionInHistory),
+				("- [%s] toggle `--fixed-strings`"):format(maps.n.toggleFixedStrings),
+				("- [%s] toggle `--ignore-case`"):format(maps.n.toggleIgnoreCase),
+				("- [%s] open at regex101"):format(maps.n.openAtRegex101),
+				("- [%s] show help"):format(maps.n.showHelp),
+				"",
+				"All mappings apply to normal mode (if not stated otherwise).",
+			}
+			u.notify(table.concat(info, "\n"), "info", { id = "rip-substitute-help", timeout = 10000 })
+		end,
+	}
 
-	-- regex101
-	keymap(
-		"n",
-		maps.openAtRegex101,
-		function() require("rip-substitute.open-at-regex101").request() end
-	)
-
-	-- history keymaps
 	state.historyPosition = #state.popupHistory + 1
-	keymap("n", maps.prevSubstitutionInHistory, function()
-		if state.historyPosition < 2 then return end
-		if state.historyPosition == #state.popupHistory + 1 then
-			state.popupPresentContent = vim.api.nvim_buf_get_lines(state.popupBufNr, 0, -1, true)
+
+	for mode, mode_maps in pairs(maps) do
+		for action, lhs in pairs(mode_maps) do
+			if actions[action] then keymap(mode, lhs, actions[action]) end
 		end
-		state.historyPosition = state.historyPosition - 1
-		local content = state.popupHistory[state.historyPosition]
-		vim.api.nvim_buf_set_lines(state.popupBufNr, 0, -1, false, content)
-	end)
-	keymap("n", maps.nextSubstitutionInHistory, function()
-		if state.historyPosition == #state.popupHistory + 1 then return end -- already at present
-		state.historyPosition = state.historyPosition + 1
-		local content = state.historyPosition == #state.popupHistory + 1 and state.popupPresentContent
-			or state.popupHistory[state.historyPosition]
-		vim.api.nvim_buf_set_lines(state.popupBufNr, 0, -1, false, content)
-	end)
-
-	-- toggles
-	keymap("n", maps.toggleFixedStrings, function()
-		state.useFixedStrings = not state.useFixedStrings
-		require("rip-substitute.rg-operations").incrementalPreviewAndMatchCount()
-		updateMatchCount()
-		setPopupTitle()
-	end)
-	keymap("n", maps.toggleIgnoreCase, function()
-		state.useIgnoreCase = not state.useIgnoreCase
-		require("rip-substitute.rg-operations").incrementalPreviewAndMatchCount()
-		updateMatchCount()
-		setPopupTitle()
-	end)
-
-	-- help
-	keymap("n", maps.showHelp, function()
-		local info = {
-			("- [%s] abort"):format(maps.abort),
-			("- [%s] confirm"):format(maps.confirm),
-			("- [%s] confirm (insert mode)"):format(maps.insertModeConfirm),
-			("- [%s] previous in history"):format(maps.prevSubstitutionInHistory),
-			("- [%s] next in history"):format(maps.nextSubstitutionInHistory),
-			("- [%s] toggle `--fixed-strings`"):format(maps.toggleFixedStrings),
-			("- [%s] toggle `--ignore-case`"):format(maps.toggleIgnoreCase),
-			("- [%s] open at regex101"):format(maps.openAtRegex101),
-			("- [%s] show help"):format(maps.showHelp),
-			"",
-			"All mappings apply to normal mode (if not stated otherwise).",
-		}
-		u.notify(table.concat(info, "\n"), "info", { id = "rip-substitute-help", timeout = 10000 })
-	end)
+	end
 end
 
 -- temporarily set conceal, so the incremental preview hides characters correctly
@@ -352,13 +349,13 @@ function M.openSubstitutionPopup()
 	if not config.popupWin.hideKeymapHints then
 		vim.list_extend(footer, {
 			{ " normal: " },
-			{ maps.showHelp:gsub("[<>]", ""), hlgroup.key },
+			{ maps.n.showHelp:gsub("[<>]", ""), hlgroup.key },
 			{ " help", hlgroup.desc },
 			{ " " },
-			{ maps.confirm:gsub("[<>]", ""), hlgroup.key },
+			{ maps.n.confirm:gsub("[<>]", ""), hlgroup.key },
 			{ " confirm", hlgroup.desc },
 			{ " " },
-			{ maps.abort:gsub("[<>]", ""), hlgroup.key },
+			{ maps.n.abort:gsub("[<>]", ""), hlgroup.key },
 			{ " abort", hlgroup.desc },
 			{ " " },
 		})

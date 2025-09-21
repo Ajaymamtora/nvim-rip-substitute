@@ -32,16 +32,20 @@ local defaultConfig = {
 		startInReplaceLineIfPrefill = false,
 		alsoPrefillReplaceLine = false,
 	},
-	keymaps = { -- normal mode (if not stated otherwise)
-		abort = "q",
-		confirm = "<CR>",
-		insertModeConfirm = "<C-CR>",
-		prevSubstitutionInHistory = "<Up>",
-		nextSubstitutionInHistory = "<Down>",
-		toggleFixedStrings = "<C-f>", -- ripgrep's `--fixed-strings`
-		toggleIgnoreCase = "<C-c>", -- ripgrep's `--ignore-case`
-		openAtRegex101 = "R",
-		showHelp = "?",
+	keymaps = {
+		n = {
+			abort = "q",
+			confirm = "<CR>",
+			prevSubstitutionInHistory = "<Up>",
+			nextSubstitutionInHistory = "<Down>",
+			toggleFixedStrings = "<C-f>", -- ripgrep's `--fixed-strings`
+			toggleIgnoreCase = "<C-c>", -- ripgrep's `--ignore-case`
+			openAtRegex101 = "R",
+			showHelp = "?",
+		},
+		i = {
+			confirm = "<C-CR>",
+		},
 	},
 	incrementalPreview = {
 		matchHlGroup = "IncSearch",
@@ -71,10 +75,38 @@ local defaultConfig = {
 
 M.config = defaultConfig
 
----@param userConfig? RipSubstitute.Config
 function M.setup(userConfig)
 	M.config = vim.tbl_deep_extend("force", M.config, userConfig or {})
 	local notify = require("rip-substitute.utils").notify
+
+	-- MIGRATE old keymap structure
+	local keymaps = M.config.keymaps
+	local old_keys_found = false
+	local keys_to_migrate = {}
+
+	-- Collect top-level keys that are not n, i, or v
+	for key, _ in pairs(keymaps) do
+		if key ~= "n" and key ~= "i" and key ~= "v" then
+			table.insert(keys_to_migrate, key)
+		end
+	end
+
+	if #keys_to_migrate > 0 then
+		old_keys_found = true
+		for _, key in ipairs(keys_to_migrate) do
+			local value = keymaps[key]
+			if key == "insertModeConfirm" then
+				keymaps.i.confirm = value
+			else
+				keymaps.n[key] = value
+			end
+			keymaps[key] = nil
+		end
+	end
+
+	if old_keys_found then
+		notify("`keymaps` configuration has changed. Please update your config to use `n` and `i` subtables for modes.", "warn")
+	end
 
 	-- set initial state for regex options
 	if M.config.regexOptions.startWithFixedStringsOn then
@@ -88,12 +120,6 @@ function M.setup(userConfig)
 	if M.config.notificationOnSuccess then ---@diagnostic disable-line: undefined-field
 		local msg =
 			"`notificationOnSuccess` has been deprecated. Use `notification.onSuccess` instead."
-		notify(msg, "warn")
-	end
-	-- DEPRECATION (2024-11-20)
-	if M.config.keymaps.prevSubst or M.config.keymaps.nextSubst then ---@diagnostic disable-line: undefined-field
-		local msg = "`keymaps.prevSubst` and `keymaps.nextSubst` have been deprecated. "
-			.. "Use `keymaps.prevSubstitutionInHistory` and `keymaps.nextSubstitutionInHistory` instead."
 		notify(msg, "warn")
 	end
 
