@@ -36,7 +36,8 @@ function M.sub(exCmdArgs)
 		return
 	end
 
-	require("rip-substitute.run-parameters").setParameters(exCmdArgs)
+	local ok = require("rip-substitute.run-parameters").setParameters(exCmdArgs)
+	if not ok then return end
 	require("rip-substitute.popup-win").openSubstitutionPopup()
 end
 

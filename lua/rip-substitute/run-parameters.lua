@@ -2,6 +2,7 @@ local M = {}
 --------------------------------------------------------------------------------
 
 ---@param exCmdArgs? exCmdArgs
+---@return boolean ok
 function M.setParameters(exCmdArgs)
 	local config = require("rip-substitute.config").config
 	local state = require("rip-substitute.state").state
@@ -24,7 +25,7 @@ function M.setParameters(exCmdArgs)
 			local msg = "Aborting, selection has more than one line. "
 				.. "(To only replace in a range, you need to use visual *line* mode.)"
 			u.notify(msg, "warn")
-			return
+			return false
 		end
 		searchPrefill = selectedLines[1]
 	end
@@ -60,6 +61,8 @@ function M.setParameters(exCmdArgs)
 
 	local targetBufLines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 	stateModule.targetBufCache = table.concat(targetBufLines, "\n")
+
+	return true
 end
 
 --------------------------------------------------------------------------------

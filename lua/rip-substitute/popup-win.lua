@@ -266,7 +266,8 @@ local function createKeymaps()
 		nextSubstitutionInHistory = function()
 			if state.historyPosition == #state.popupHistory + 1 then return end -- already at present
 			state.historyPosition = state.historyPosition + 1
-			local content = state.historyPosition == #state.popupHistory + 1 and state.popupPresentContent
+			local content = state.historyPosition == #state.popupHistory + 1
+					and state.popupPresentContent
 				or state.popupHistory[state.historyPosition]
 			vim.api.nvim_buf_set_lines(state.popupBufNr, 0, -1, false, content)
 		end,
@@ -331,7 +332,9 @@ function M.openSubstitutionPopup()
 
 	-- CREATE BUFFER
 	local bufnr = vim.api.nvim_create_buf(false, true)
-	vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, state.prefill)
+	-- Defensive: ensure we always pass a table to nvim_buf_set_lines
+	local prefill = type(state.prefill) == "table" and state.prefill or { "", "" }
+	vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, prefill)
 	vim.api.nvim_buf_set_name(bufnr, "rip-substitute")
 	pcall(vim.treesitter.start, bufnr, "regex")
 	vim.bo[bufnr].filetype = "rip-substitute"
@@ -405,7 +408,7 @@ function M.openSubstitutionPopup()
 	vim.wo[win].winfixbuf = true
 
 	-- CURSOR PLACEMENT
-	if config.prefill.startInReplaceLineIfPrefill and state.prefill[1] ~= "" then
+	if config.prefill.startInReplaceLineIfPrefill and prefill[1] ~= "" then
 		vim.api.nvim_win_set_cursor(state.popupWinNr, { 2, 0 })
 	end
 	vim.cmd.startinsert { bang = true }
